@@ -1,0 +1,26 @@
+{
+  "Finance": {
+    "name": "Finance",
+    "dimension": 512,
+    "index_type": "Flat",
+    "created_at": "2025-04-02T15:06:35.228762",
+    "vectors_count": 0,
+    "files_count": 0
+  },
+  "gov": {
+    "name": "gov",
+    "dimension": 512,
+    "index_type": "Flat",
+    "created_at": "2025-04-06T21:46:03.023609",
+    "vectors_count": 0,
+    "files_count": 0
+  },
+  "finance": {
+    "name": "finance",
+    "dimension": 512,
+    "index_type": "Flat",
+    "created_at": "2025-04-06T21:46:46.940257",
+    "vectors_count": 0,
+    "files_count": 0
+  }
+}
