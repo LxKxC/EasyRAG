@@ -345,7 +345,7 @@ class RAGService:
             elif result.get("status") == "error" and progress_callback:
                 progress_callback(100, f"添加文档到知识库 {kb_name} 失败: {result.get('message', '')}")
                 return False
-            
+            self.vector_db = FaissManager(os.path.join(self.db_path, "faiss_indexes"))
             # 根据status返回成功或失败
             return result.get("status") == "success"
             
