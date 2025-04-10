@@ -1466,60 +1466,6 @@ class RAGServiceWebUI:
                                 chat_input = gr.Textbox(label="问题", placeholder="输入问题...", lines=2)
                                 chat_btn = gr.Button("发送", variant="primary")
                 
-                # # 添加Deepseek R1 1.5B聊天标签页
-                # with gr.TabItem("🤖 Deepseek聊天", id="deepseek_chat"):
-                #     with gr.Row():
-                #         with gr.Column(scale=1):
-                #             with gr.Box():
-                #                 gr.Markdown("### 模型配置")
-                #                 model_path = gr.Textbox(
-                #                     label="模型路径", 
-                #                     placeholder="可选，留空使用默认路径或自动下载",
-                #                     value=""
-                #                 )
-                #                 temperature_deepseek = gr.Slider(
-                #                     label="生成多样性", 
-                #                     minimum=0.1, 
-                #                     maximum=1.0, 
-                #                     step=0.1, 
-                #                     value=0.7
-                #                 )
-                #                 max_tokens = gr.Slider(
-                #                     label="最大生成长度", 
-                #                     minimum=128, 
-                #                     maximum=2048, 
-                #                     step=128, 
-                #                     value=1024
-                #                 )
-                #                 clear_deepseek_btn = gr.Button("清空对话", variant="secondary")
-                                
-                #                 gr.Markdown("""
-                #                 **说明**：
-                #                 1. 首次运行时，系统将自动从ModelScope下载模型
-                #                 2. 您也可以指定已下载的模型路径
-                #                 3. 支持本地路径或ModelScope模型ID
-                #                 """)
-                        
-                #         with gr.Column(scale=2):
-                #             with gr.Box():
-                #                 gr.Markdown("### Deepseek R1 1.5B 聊天")
-                #                 deepseek_chatbot = gr.Chatbot(
-                #                     height=500, 
-                #                     label="Deepseek R1 1.5B", 
-                #                     elem_id="deepseek_chatbot",
-                #                     avatar_images=("👤", "🤖")
-                #                 )
-                #                 deepseek_input = gr.Textbox(
-                #                     label="问题", 
-                #                     placeholder="输入问题...", 
-                #                     lines=3,
-                #                     show_label=False
-                #                 )
-                #                 deepseek_chat_btn = gr.Button(
-                #                     "发送", 
-                #                     variant="primary",
-                #                     elem_id="deepseek_chat_button"
-                #                 )
             
             # 添加分块方法的事件处理函数
             def on_chunk_method_change(value):

@@ -2745,12 +2745,12 @@ class DataLineageTracker:
         self.lineage_store.insert(lineage_record)
 
 
-if __name__ == "__main__":
-    faiss_manager = FaissManager()
-    faiss_manager.create_collection("test_collection", dimension=1536, index_type="Flat")
-    faiss_manager.add_vectors("test_collection", np.random.random((1000, 1536)).astype('float32'), [{"text": "test"}], "test.txt")
-    results = faiss_manager.search("test_collection", np.random.random((1536,)).astype('float32'), top_k=5)
-    print(results)
+# if __name__ == "__main__":
+#     faiss_manager = FaissManager()
+#     faiss_manager.create_collection("test_collection", dimension=1536, index_type="Flat")
+#     faiss_manager.add_vectors("test_collection", np.random.random((1000, 1536)).astype('float32'), [{"text": "test"}], "test.txt")
+#     results = faiss_manager.search("test_collection", np.random.random((1536,)).astype('float32'), top_k=5)
+#     print(results)
     # files_info = faiss_manager.list_files("test")
     # print(files_info)
     # file_info = faiss_manager.get_file_info("test", "test.txt")

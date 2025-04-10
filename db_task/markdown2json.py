@@ -161,7 +161,7 @@ if __name__ == "__main__":
     from docx_to_markdown5 import DocxToMarkdown
     
     docx_to_markdown = DocxToMarkdown()
-    title_list = ['贵州省政务云密码服务与监管平台建设方案v2', '建始县政务网档案馆室一体化平台密码应用方案V2.0', '乐清市大数据发展管理中心信创云密码服务管理平台解决方案', '陕西省政务云密码服务项目建设方案v2.5', '商洛市卫健委集约化密码服务与监管平台项目建设方案v1.2','苏州工业园区政务云密码服务资源平台项目设计方案0206V2', '铜川市政务云统一密码服务项目建设方案v2', '信创云密码服务平台202405', '业务系统密码改造方案202403(1)']
+    title_list = ['']
     for title in title_list:
     #     print(title)
     #     markdown_text = docx_to_markdown.convert(f"/home/user/new/EasyRAG/gov/{title}.docx")

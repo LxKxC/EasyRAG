@@ -3,12 +3,8 @@ import re
 import logging
 import docx
 from typing import Dict, Any, List, Tuple
-import cv2
-import tempfile
 import sys
 import json
-import subprocess
-import traceback
 import os
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -41,7 +37,7 @@ class DocxToMarkdown:
                 
             if not file_path.lower().endswith('.docx'):
                 raise ValueError(f"不支持的文件格式，仅支持.docx文件: {file_path}")
-            
+            print(file_path)
             document = docx.Document(file_path)
             markdown_text = self._process_document(document)
             # print(markdown_text)
@@ -49,7 +45,9 @@ class DocxToMarkdown:
             return markdown_text
             
         except Exception as e:
+            import traceback
             logger.error(f"转换DOCX到Markdown失败: {str(e)}")
+            logger.error(traceback.format_exc())
             raise ValueError(f"转换失败: {str(e)}")
     
     def _process_document(self, document) -> str:
@@ -183,6 +181,7 @@ class DocxToMarkdown:
                             markdown_parts.append(f"```\n{table_text}\n```")
                             continue
                 except Exception as e:
+                    import traceback
                     logger.error(f"使用OCR提取表格失败: {str(e)}")
                     logger.error(traceback.format_exc())
                 
@@ -425,12 +424,21 @@ if __name__ == "__main__":
     # print(markdown_text)
     
     # 按标题分块并获取章节信息
-    chunks = docx_to_markdown.convert_and_chunk(r"D:\code\llm_sass_station\EasyRAG\gov\贵州省政务云密码服务与监管平台建设方案v2.docx")
+    chunks = docx_to_markdown.convert_and_chunk(r"C:\Users\lenovo\Downloads\完整文档.docx")
     print(f"\n总共分成了 {len(chunks)} 个块")
-    for i, chunk in enumerate(chunks):  # 只打印前3个块作为示例
+    
+    valid_chunks = []
+    for i, chunk in enumerate(chunks):
+        # 过滤掉内容太短的块
+        if len(chunk['content']) < 15:
+            continue
+        
+        valid_chunks.append(chunk)
         print('********************************************')
         print(f"\n块 {i+1}:")
         print(f"一级标题: {chunk['h1']}")
         print(f"二级标题: {chunk['h2']}")
         print(f"当前标题: {chunk['title']}")
         print(f"内容预览: {chunk['content']}...")
+    
+    print(f"\n过滤后剩余 {len(valid_chunks)} 个有效块")

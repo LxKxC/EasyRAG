@@ -4,7 +4,7 @@ import numpy as np
 
 
 # embedding model
-model_id = "iic/nlp_gte_sentence-embedding_chinese-base"
+model_id = "iic/gte_Qwen2-7B-instruct"
 pipeline_se = pipeline(Tasks.sentence_embedding,
                        model=model_id,
                        sequence_length=512

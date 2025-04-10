@@ -1135,11 +1135,3 @@ class FileHandler:
             print(f"读取文件失败: {str(e)}")
             traceback.print_exc()
             raise HTTPException(status_code=500, detail=f"读取文件失败: {str(e)}")
-
-if __name__ == "__main__":
-    file_path = r"C:\Users\Administrator\Desktop\培训资料\Docs\产品白皮书\密码服务平台\得安密码服务平台白皮书.docx"
-    handler = FileHandler()
-    result = handler.process_file(file_path)
-    print(result.keys())
-    print(result["structure"])
-    print(result["structure"]["sections"])
