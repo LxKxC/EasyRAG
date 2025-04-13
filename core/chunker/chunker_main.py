@@ -3,7 +3,9 @@ import numpy as np
 import logging
 from typing import List, Dict, Any, Optional, Tuple, Union
 from enum import Enum
-
+import os
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from core.chunker.text_semantic_chunk import TextSemanticChunker
 from core.chunker.semantic_chunk import SemanticChunker
 from core.chunker.hierarchical_chunk import HierarchicalTextSplitter
@@ -257,3 +259,25 @@ class DocumentChunker:
         # 重新初始化分块器
         self._init_chunker(**kwargs)
         return True
+
+
+
+if __name__ == "__main__":
+    # 测试文档分块器
+    
+    # 创建文档分块器实例
+    chunker = DocumentChunker(method=ChunkMethod.MARKDOWN_HEADER)
+    
+    # 加载并转换文档
+    
+    from core.file_read.file_to_markdown import FileToMarkdown
+    file_path = r"D:\桌面\培训资料\Docs\技术方案\密码应用方案\密码监管平台建设方案.docx"
+    loader = FileToMarkdown()
+    text = loader.file_to_markdown(file_path)
+    
+    # 执行分块
+    chunks = chunker.chunk_document(text)
+    print(f"共生成 {len(chunks)} 个分块")
+    print(f"第一个分块示例: {chunks}")
+
+

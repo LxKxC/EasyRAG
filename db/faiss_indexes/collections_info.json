@@ -22,5 +22,13 @@
     "created_at": "2025-04-06T21:46:46.940257",
     "vectors_count": 0,
     "files_count": 0
+  },
+  "test01": {
+    "name": "test01",
+    "dimension": 512,
+    "index_type": "Flat",
+    "created_at": "2025-04-13T10:52:17.348871",
+    "vectors_count": 0,
+    "files_count": 0
   }
 }

@@ -95,10 +95,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 添加静态文件服务
-web_dir = os.path.join(current_dir, "web")
-os.makedirs(web_dir, exist_ok=True)
-app.mount("/static", StaticFiles(directory=web_dir), name="static")
+
 
 # 初始化RAG服务和文件处理器
 rag_service = None
@@ -111,19 +108,7 @@ class MockChunkMethod:
         return ["text_semantic", "semantic", "hierarchical", "markdown_header", "recursive_character", "bm25"]
 
 
-@app.get("/")
-async def root():
-    """API根路径，重定向到首页"""
-    return RedirectResponse(url="/static/index.html")
 
-@app.get("/file-manager")
-async def file_manager_page():
-    """返回文件管理页面"""
-    file_path = os.path.join(web_dir, "file_manager.html")
-    if os.path.exists(file_path):
-        return FileResponse(file_path)
-    else:
-        raise HTTPException(status_code=404, detail="文件管理页面不存在")
 
 @app.post("/kb/create")
 async def create_knowledge_base(kb_data: KnowledgeBaseCreate):

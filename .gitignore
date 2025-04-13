@@ -1,4 +1,5 @@
  # 项目特定忽略
+pip_env/
 pip_cache/
 temp_files/
 models_file/

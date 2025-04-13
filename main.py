@@ -8,8 +8,8 @@ from core.faiss_connect import FaissManager, DataLineageTracker
 from core.embbeding_model import get_embedding
 from core.rerank_model import reranker, load_rerank_model
 from core.chunker.chunker_main import DocumentChunker, ChunkMethod
-from core.file_read.file_handle import FileHandler
-
+# from core.file_read.file_handle import FileHandler
+from core.file_read.file_to_markdown import FileToMarkdown
 # 配置日志
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,8 @@ class DocumentProcessor:
             chunk_size: 块大小
             chunk_overlap: 块重叠大小
         """
-        self.file_handler = FileHandler()
+        # self.file_handler = FileHandler() # 文件处理类 目前暂时更换为markdown解析器，效果更好
+        self.file_handler = FileToMarkdown()
         self.chunker = DocumentChunker(
             method=chunk_method,
             chunk_size=chunk_size,
@@ -801,103 +802,6 @@ class RAGService:
             logger.exception(e)
             return {"error": str(e)}
 
-    # def chat_with_kb(self, kb_name: str, query: str, history: List[Dict[str, str]] = None, 
-    #                  top_k: int = 5, temperature: float = 0.7, use_rerank: bool = True) -> str:
-    #     """
-    #     基于知识库内容进行对话，结合知识库检索结果生成回答
-        
-    #     参数:
-    #         kb_name: 知识库名称
-    #         query: 用户当前的查询内容
-    #         history: 对话历史记录，格式为[{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]
-    #         top_k: 知识库检索的结果数量
-    #         temperature: 生成时的温度参数，控制输出的随机性
-    #         use_rerank: 是否使用重排序
-            
-    #     返回:
-    #         生成的回答文本
-    #     """
-    #     try:
-    #         # 检查知识库是否存在
-    #         if not self.kb_exists(kb_name):
-    #             return f"错误：知识库 {kb_name} 不存在。"
-            
-    #         # 从知识库中检索相关内容
-    #         search_results = self.search(
-    #             kb_name=kb_name,
-    #             query=query,
-    #             top_k=top_k,
-    #             use_rerank=use_rerank,
-    #             remove_duplicates=True
-    #         )
-            
-    #         if not search_results:
-    #             logger.warning(f"在知识库 {kb_name} 中未找到与查询 '{query}' 相关的内容")
-    #             return "很抱歉，我在知识库中没有找到与您问题相关的信息。请尝试用不同的方式提问，或者询问其他内容。"
-            
-    #         # 整理检索到的内容，准备提供给语言模型
-    #         context_texts = []
-    #         for i, result in enumerate(search_results):
-    #             content = result.get("content", "")
-    #             if content:
-    #                 # 格式化检索结果，包含相关性分数
-    #                 context_text = f"[{i+1}] {content} (相关度: {result.get('score', 0.0)})"
-    #                 context_texts.append(context_text)
-            
-    #         context = "\n\n".join(context_texts)
-            
-    #         try:
-    #             # 导入DeepSeekLLM模型
-    #             from core.llm.local_llm_model import get_llm_model
-    #             model = get_llm_model()
-                
-    #             # 准备对话历史（转换为local_llm_model格式）
-    #             formatted_history = []
-    #             if history:
-    #                 # API传入的历史格式为[{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]
-    #                 # 需要转换为DeepSeekLLM需要的格式：[[user_msg, assistant_msg], ...]
-    #                 i = 0
-    #                 while i < len(history) - 1:
-    #                     user_msg = None
-    #                     assistant_msg = None
-                        
-    #                     # 找到一对用户和助手消息
-    #                     if history[i]["role"] == "user" and history[i+1]["role"] == "assistant":
-    #                         user_msg = history[i]["content"]
-    #                         assistant_msg = history[i+1]["content"]
-    #                         formatted_history.append([user_msg, assistant_msg])
-    #                         i += 2
-    #                     else:
-    #                         # 如果格式不匹配，尝试向前移动一位
-    #                         i += 1
-                
-    #             logger.info(f"对话历史记录已转换，共 {len(formatted_history)} 轮对话")
-                
-    #             # 生成回答
-    #             response = model.generate_response(
-    #                 query=query,
-    #                 context=context_texts,
-    #                 history=formatted_history,
-    #                 temperature=temperature
-    #             )
-                
-    #             return response
-                
-    #         except ImportError:
-    #             logger.error("未能导入LLM模型，无法生成回答")
-    #             # 返回一个基于检索结果的简单回答
-    #             return f"以下是与您问题相关的内容：\n\n{context}\n\n注：系统未能加载语言模型，仅返回知识库检索结果。"
-                
-    #         except Exception as e:
-    #             logger.error(f"生成回答时出错: {str(e)}")
-    #             logger.exception(e)
-    #             return f"处理您的问题时发生错误。以下是相关的检索结果：\n\n{context}"
-                
-    #     except Exception as e:
-    #         logger.error(f"与知识库对话失败: {str(e)}")
-    #         logger.exception(e)
-    #         return f"处理您的问题时发生错误: {str(e)}"
-    
     def chat_with_kb(self, kb_name: str, query: str, history: List[Dict[str, str]] = None,
                            top_k: int = 5, temperature: float = 0.7, use_rerank: bool = True):
         """

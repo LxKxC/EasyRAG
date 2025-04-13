@@ -747,31 +747,79 @@ class FaissManager:
             Dict: 添加结果信息
         """
         try:
+            # 文件路径检查和处理
+            original_file_path = file_path  # 保存原始路径用于日志
+            if file_path is None or file_path.strip() == "":
+                logger.warning(f"添加向量到 {collection_name} 时未提供文件路径")
+                # 尝试从元数据中提取文件路径
+                for meta in metadata:
+                    if isinstance(meta, dict) and "metadata" in meta and "file_path" in meta["metadata"]:
+                        file_path = meta["metadata"]["file_path"]
+                        logger.info(f"从元数据中提取到文件路径: {file_path}")
+                        break
+                
+                # 如果仍然为空，创建一个默认的系统生成路径
+                if file_path is None or file_path.strip() == "":
+                    file_path = f"system_generated_{int(time.time())}.txt"
+                    logger.warning(f"未找到有效文件路径，使用系统生成路径: {file_path}")
+            
+            logger.info(f"开始向集合 {collection_name} 添加 {len(vectors)} 个向量，文件路径: {file_path}")
+            
             # 确保集合存在
             if not self.collection_exists(collection_name):
-                self._ensure_collection_exists(collection_name)
+                create_success = self._ensure_collection_exists(collection_name)
+                if not create_success:
+                    logger.error(f"无法创建集合 {collection_name}")
+                    return {"status": "error", "message": f"无法创建集合 {collection_name}"}
                 logger.info(f"集合 {collection_name} 不存在，已创建新集合")
             
             # 确保索引和元数据已加载
             if collection_name not in self.indexes:
                 load_success = self._load_index(collection_name)
                 if not load_success:
+                    logger.error(f"无法加载集合 {collection_name} 的索引")
                     return {"status": "error", "message": f"无法加载集合 {collection_name} 的索引"}
+                logger.info(f"成功加载索引 {collection_name}")
             
             if collection_name not in self.metadata:
                 load_success = self._load_metadata(collection_name)
                 if not load_success:
+                    logger.error(f"无法加载集合 {collection_name} 的元数据")
                     return {"status": "error", "message": f"无法加载集合 {collection_name} 的元数据"}
+                logger.info(f"成功加载元数据 {collection_name}")
             
+            # 确保文件注册表已初始化
             if collection_name not in self.file_registry:
+                logger.info(f"初始化集合 {collection_name} 的文件注册表")
                 load_success = self._load_file_registry(collection_name)
                 if not load_success:
-                    return {"status": "error", "message": f"无法加载集合 {collection_name} 的文件注册表"}
+                    logger.warning(f"无法加载集合 {collection_name} 的文件注册表，将创建新的文件注册表")
+                    self.file_registry[collection_name] = {
+                        "_created_at": datetime.now().isoformat(),
+                        "_last_updated": datetime.now().isoformat(),
+                        "_file_count": 0,
+                        "_vector_count": 0
+                    }
+                    # 立即保存新创建的文件注册表
+                    save_success = self._save_file_registry(collection_name)
+                    if not save_success:
+                        logger.error(f"无法保存新创建的文件注册表 {collection_name}")
+            elif not isinstance(self.file_registry[collection_name], dict):
+                logger.error(f"文件注册表格式错误: {type(self.file_registry[collection_name])}，重新初始化")
+                self.file_registry[collection_name] = {
+                    "_created_at": datetime.now().isoformat(),
+                    "_last_updated": datetime.now().isoformat(),
+                    "_file_count": 0,
+                    "_vector_count": 0
+                }
+                save_success = self._save_file_registry(collection_name)
+                if not save_success:
+                    logger.error(f"无法保存重新初始化的文件注册表 {collection_name}")
             
             # 获取已加载的对象
             index = self.indexes[collection_name]
             collection_metadata = self.metadata[collection_name]
-            print("collection_metadata", collection_metadata)
+            logger.info(f"集合 {collection_name} 当前状态: 索引包含 {index.ntotal} 个向量，元数据包含 {len(collection_metadata) if isinstance(collection_metadata, list) else len(collection_metadata.keys())} 条记录")
             
             # 检查元数据条目数量是否与向量数量匹配
             if len(metadata) != len(vectors):
@@ -808,88 +856,118 @@ class FaissManager:
                             if i < len(metadata):
                                 collection_metadata[str(before_count + i)] = metadata[i]
                     
-                    # 如果提供了文件路径，更新文件注册表
-                    if file_path:
-                        if collection_name not in self.file_registry:
-                            self.file_registry[collection_name] = {
-                                "_created_at": datetime.now().isoformat(),
-                                "_last_updated": datetime.now().isoformat(),
-                                "_file_count": 0,
-                                "_vector_count": 0
-                            }
+                    # 确保文件注册表已正确初始化
+                    if collection_name not in self.file_registry or not isinstance(self.file_registry[collection_name], dict):
+                        logger.warning(f"文件注册表未正确初始化，重新创建")
+                        self.file_registry[collection_name] = {
+                            "_created_at": datetime.now().isoformat(),
+                            "_last_updated": datetime.now().isoformat(),
+                            "_file_count": 0,
+                            "_vector_count": 0
+                        }
+                    
+                    # 处理文件路径和文件名
+                    file_name = os.path.basename(file_path)
+                    logger.info(f"处理文件: {file_name} (路径: {file_path})")
+                    
+                    # 更新文件注册表
+                    if file_name not in self.file_registry[collection_name]:
+                        # 创建完整的文件记录结构
+                        self.file_registry[collection_name][file_name] = {
+                            "file_name": file_name,  # 明确存储文件名
+                            "file_path": file_path,  # 存储完整路径
+                            "added_at": datetime.now().isoformat(),
+                            "vector_count": added_count,
+                            "last_updated": datetime.now().isoformat(),
+                            "versions": [
+                                {
+                                    "version": 1,
+                                    "vector_count": added_count,
+                                    "vector_ids": list(range(before_count, before_count + added_count)),
+                                    "created_at": datetime.now().isoformat()
+                                }
+                            ],
+                            "current_version": 1
+                        }
+                        logger.info(f"文件注册表: 添加新文件 {file_name} 记录，包含 {added_count} 个向量")
                         
-                        file_name = os.path.basename(file_path)
-                        if file_name not in self.file_registry[collection_name]:
-                            # 创建完整的文件记录结构
-                            self.file_registry[collection_name][file_name] = {
-                                "file_name": file_name,  # 明确存储文件名
-                                "file_path": file_path,  # 存储完整路径
-                                "added_at": datetime.now().isoformat(),
-                                "vector_count": added_count,
-                                "last_updated": datetime.now().isoformat(),
-                                "versions": [
-                                    {
-                                        "version": 1,
-                                        "vector_count": added_count,
-                                        "vector_ids": list(range(before_count, before_count + added_count)),
-                                        "created_at": datetime.now().isoformat()
-                                    }
-                                ],
-                                "current_version": 1
-                            }
+                        # 记录新文件添加事件
+                        self._record_file_event(collection_name, file_name, "file_added", {
+                            "vector_count": added_count,
+                            "file_path": file_path
+                        })
+                    else:
+                        # 更新现有文件记录
+                        current_file = self.file_registry[collection_name][file_name]
+                        logger.info(f"更新现有文件记录: {file_name}")
+                        
+                        # 确保文件名和路径字段存在
+                        if "file_name" not in current_file:
+                            current_file["file_name"] = file_name
+                            logger.debug(f"添加缺失的file_name字段: {file_name}")
+                        if "file_path" not in current_file:
+                            current_file["file_path"] = file_path
+                            logger.debug(f"添加缺失的file_path字段: {file_path}")
                             
-                            # 更新元数据信息，确保每个向量都有文件信息
-                            for i, meta in enumerate(metadata):
-                                vector_idx = before_count + i
-                                if isinstance(collection_metadata, dict):
-                                    if str(vector_idx) in collection_metadata:
-                                        if "metadata" not in collection_metadata[str(vector_idx)]:
-                                            collection_metadata[str(vector_idx)]["metadata"] = {}
-                                        collection_metadata[str(vector_idx)]["metadata"]["file_name"] = file_name
-                                        collection_metadata[str(vector_idx)]["metadata"]["file_path"] = file_path
-                                elif isinstance(collection_metadata, list) and vector_idx < len(collection_metadata):
-                                    if "metadata" not in collection_metadata[vector_idx]:
-                                        collection_metadata[vector_idx]["metadata"] = {}
-                                    collection_metadata[vector_idx]["metadata"]["file_name"] = file_name
-                                    collection_metadata[vector_idx]["metadata"]["file_path"] = file_path
+                        # 确保vector_count字段存在
+                        if "vector_count" not in current_file:
+                            current_file["vector_count"] = 0
+                            logger.debug("添加缺失的vector_count字段")
                             
-                            logger.info(f"文件注册表: 添加新文件 {file_name} 记录，包含 {added_count} 个向量")
-                        else:
-                            # 更新现有文件记录
-                            current_file = self.file_registry[collection_name][file_name]
+                        # 更新向量计数
+                        old_count = current_file["vector_count"]
+                        current_file["vector_count"] += added_count
+                        current_file["last_updated"] = datetime.now().isoformat()
+                        logger.info(f"更新向量计数: {old_count} -> {current_file['vector_count']}")
+                        
+                        # 确保versions字段存在
+                        if "versions" not in current_file:
+                            current_file["versions"] = []
+                            logger.debug("添加缺失的versions字段")
                             
-                            # 确保文件名和路径字段存在
-                            if "file_name" not in current_file:
-                                current_file["file_name"] = file_name
-                            if "file_path" not in current_file:
-                                current_file["file_path"] = file_path
-                                
-                            # 确保vector_count字段存在
-                            if "vector_count" not in current_file:
-                                current_file["vector_count"] = 0
-                                
-                            current_file["vector_count"] += added_count
-                            current_file["last_updated"] = datetime.now().isoformat()
+                        # 创建新版本
+                        next_version = 1
+                        if current_file["versions"]:
+                            next_version = max([v.get("version", 0) for v in current_file["versions"]]) + 1
                             
-                            # 确保versions字段存在
-                            if "versions" not in current_file:
-                                current_file["versions"] = []
-                                
-                            # 创建新版本
-                            next_version = 1
-                            if current_file["versions"]:
-                                next_version = max([v.get("version", 0) for v in current_file["versions"]]) + 1
-                                
-                            new_version = {
-                                "version": next_version,
-                                "vector_count": added_count,
-                                "vector_ids": list(range(before_count, before_count + added_count)),
-                                "created_at": datetime.now().isoformat()
-                            }
-                            
-                            current_file["versions"].append(new_version)
-                            current_file["current_version"] = next_version
-                            logger.info(f"文件注册表: 更新文件 {file_name} 记录，添加版本 {next_version}，包含 {added_count} 个新向量")
+                        new_version = {
+                            "version": next_version,
+                            "vector_count": added_count,
+                            "vector_ids": list(range(before_count, before_count + added_count)),
+                            "created_at": datetime.now().isoformat()
+                        }
+                        
+                        current_file["versions"].append(new_version)
+                        current_file["current_version"] = next_version
+                        logger.info(f"文件注册表: 更新文件 {file_name} 记录，添加版本 {next_version}，包含 {added_count} 个新向量")
+                        
+                        # 记录文件更新事件
+                        self._record_file_event(collection_name, file_name, "file_updated", {
+                            "new_version": next_version,
+                            "added_vectors": added_count
+                        })
+                    
+                    # 更新元数据信息，确保每个向量都有文件信息
+                    for i, meta in enumerate(metadata):
+                        vector_idx = before_count + i
+                        if isinstance(collection_metadata, dict):
+                            if str(vector_idx) in collection_metadata:
+                                if "metadata" not in collection_metadata[str(vector_idx)]:
+                                    collection_metadata[str(vector_idx)]["metadata"] = {}
+                                collection_metadata[str(vector_idx)]["metadata"]["file_name"] = file_name
+                                collection_metadata[str(vector_idx)]["metadata"]["file_path"] = file_path
+                        elif isinstance(collection_metadata, list) and vector_idx < len(collection_metadata):
+                            if "metadata" not in collection_metadata[vector_idx]:
+                                collection_metadata[vector_idx]["metadata"] = {}
+                            collection_metadata[vector_idx]["metadata"]["file_name"] = file_name
+                            collection_metadata[vector_idx]["metadata"]["file_path"] = file_path
+                    
+                    # 更新文件注册表的基本统计信息
+                    self.file_registry[collection_name]["_last_updated"] = datetime.now().isoformat()
+                    file_count = sum(1 for k in self.file_registry[collection_name].keys() if not k.startswith('_'))
+                    self.file_registry[collection_name]["_file_count"] = file_count
+                    self.file_registry[collection_name]["_vector_count"] = index.ntotal
+                    logger.info(f"更新文件注册表统计信息: {file_count} 个文件, {index.ntotal} 个向量")
                     
                     # 保存更新后的数据
                     logger.info(f"开始保存索引、元数据和文件注册表...")
@@ -901,20 +979,45 @@ class FaissManager:
                     if not index_saved:
                         logger.error(f"索引保存失败，索引包含 {index.ntotal} 个向量")
                     if not metadata_saved:
-                        logger.error(f"元数据保存失败，包含 {len(collection_metadata)} 个条目")
+                        logger.error(f"元数据保存失败，包含 {len(collection_metadata) if isinstance(collection_metadata, list) else len(collection_metadata.keys())} 个条目")
                     if not registry_saved:
-                        logger.error(f"文件注册表保存失败: {self.file_registry.get(collection_name, {})}")
+                        logger.error(f"文件注册表保存失败: {file_count} 个文件, {index.ntotal} 个向量")
                     
                     if not (index_saved and metadata_saved and registry_saved):
-                        logger.error(f"添加向量时保存失败: 索引={index_saved}, 元数据={metadata_saved}, 文件注册表={registry_saved}")
+                        error_msg = f"添加向量时保存失败: 索引={index_saved}, 元数据={metadata_saved}, 文件注册表={registry_saved}"
+                        logger.error(error_msg)
+                        # 记录保存失败事件
+                        self._record_collection_event(collection_name, "save_failed", {
+                            "error": error_msg,
+                            "timestamp": datetime.now().isoformat()
+                        })
                         return {"status": "error", "message": "向量添加成功但保存数据失败"}
                     
+                    # 记录成功事件
+                    self._record_collection_event(collection_name, "vectors_added", {
+                        "count": added_count,
+                        "file_name": file_name,
+                        "timestamp": datetime.now().isoformat()
+                    })
+                    
                     logger.info(f"成功添加 {added_count} 个向量到空索引 {collection_name}")
-                    return {"status": "success", "message": f"添加了 {added_count} 个向量到集合 {collection_name}", "count": added_count}
+                    return {
+                        "status": "success", 
+                        "message": f"添加了 {added_count} 个向量到集合 {collection_name}", 
+                        "count": added_count,
+                        "file_name": file_name
+                    }
                 except Exception as e:
-                    logger.error(f"向空索引添加向量时发生错误: {str(e)}")
+                    error_msg = f"向空索引添加向量时发生错误: {str(e)}"
+                    logger.error(error_msg)
                     logger.error(traceback.format_exc())
-                    return {"status": "error", "message": f"添加向量时发生错误: {str(e)}"}
+                    # 记录错误事件
+                    self._record_collection_event(collection_name, "add_vectors_error", {
+                        "error": str(e),
+                        "file_path": file_path,
+                        "timestamp": datetime.now().isoformat()
+                    })
+                    return {"status": "error", "message": error_msg}
             
             # 对于非空索引，首先检查重复
             accepted_vectors = []
@@ -946,6 +1049,7 @@ class FaissManager:
             # 如果有向量被接受，则添加它们
             if accepted_vectors:
                 try:
+                    logger.info(f"准备添加 {len(accepted_vectors)} 个非重复向量到集合 {collection_name}")
                     # 将接受的向量转换为NumPy数组
                     vectors_to_add = np.array(accepted_vectors)
                     
@@ -959,6 +1063,7 @@ class FaissManager:
                         logger.warning(f"添加的向量数量不匹配: 期望添加 {len(vectors_to_add)} 个，实际添加 {added_count} 个")
                     
                     # 更新元数据
+                    logger.info(f"更新元数据，添加 {len(accepted_metadata)} 条记录")
                     if isinstance(collection_metadata, list):
                         # 如果元数据是列表，直接扩展
                         collection_metadata.extend(accepted_metadata)
@@ -968,88 +1073,117 @@ class FaissManager:
                             if i < len(accepted_metadata):
                                 collection_metadata[str(before_count + i)] = accepted_metadata[i]
                     
-                    # 如果提供了文件路径，更新文件注册表
-                    if file_path:
-                        if collection_name not in self.file_registry:
-                            self.file_registry[collection_name] = {
-                                "_created_at": datetime.now().isoformat(),
-                                "_last_updated": datetime.now().isoformat(),
-                                "_file_count": 0,
-                                "_vector_count": 0
-                            }
+                    # 确保文件注册表已正确初始化
+                    if collection_name not in self.file_registry or not isinstance(self.file_registry[collection_name], dict):
+                        logger.warning(f"文件注册表未正确初始化，重新创建")
+                        self.file_registry[collection_name] = {
+                            "_created_at": datetime.now().isoformat(),
+                            "_last_updated": datetime.now().isoformat(),
+                            "_file_count": 0,
+                            "_vector_count": 0
+                        }
+                    
+                    # 处理文件路径和文件名
+                    file_name = os.path.basename(file_path)
+                    logger.info(f"处理文件: {file_name} (路径: {file_path})")
+                    
+                    # 更新文件注册表
+                    if file_name not in self.file_registry[collection_name]:
+                        # 创建新文件记录
+                        logger.info(f"为文件 {file_name} 创建新记录")
+                        self.file_registry[collection_name][file_name] = {
+                            "file_name": file_name,
+                            "file_path": file_path,
+                            "added_at": datetime.now().isoformat(),
+                            "vector_count": added_count,
+                            "last_updated": datetime.now().isoformat(),
+                            "versions": [
+                                {
+                                    "version": 1,
+                                    "vector_count": added_count,
+                                    "vector_ids": list(range(before_count, before_count + added_count)),
+                                    "created_at": datetime.now().isoformat()
+                                }
+                            ],
+                            "current_version": 1
+                        }
+                        logger.info(f"文件注册表: 添加新文件 {file_name} 记录，包含 {added_count} 个向量")
                         
-                        file_name = os.path.basename(file_path)
-                        if file_name not in self.file_registry[collection_name]:
-                            # 创建完整的文件记录结构
-                            self.file_registry[collection_name][file_name] = {
-                                "file_name": file_name,  # 明确存储文件名
-                                "file_path": file_path,  # 存储完整路径
-                                "added_at": datetime.now().isoformat(),
-                                "vector_count": added_count,
-                                "last_updated": datetime.now().isoformat(),
-                                "versions": [
-                                    {
-                                        "version": 1,
-                                        "vector_count": added_count,
-                                        "vector_ids": list(range(before_count, before_count + added_count)),
-                                        "created_at": datetime.now().isoformat()
-                                    }
-                                ],
-                                "current_version": 1
-                            }
+                        # 记录新文件添加事件
+                        self._record_file_event(collection_name, file_name, "file_added", {
+                            "vector_count": added_count,
+                            "file_path": file_path,
+                            "duplicates_skipped": duplicates_count
+                        })
+                    else:
+                        # 更新现有文件记录
+                        current_file = self.file_registry[collection_name][file_name]
+                        logger.info(f"更新现有文件记录: {file_name}")
+                        
+                        # 确保基本字段存在
+                        if "file_name" not in current_file:
+                            current_file["file_name"] = file_name
+                            logger.debug(f"添加缺失的file_name字段: {file_name}")
+                        if "file_path" not in current_file:
+                            current_file["file_path"] = file_path
+                            logger.debug(f"添加缺失的file_path字段: {file_path}")
+                        if "vector_count" not in current_file:
+                            current_file["vector_count"] = 0
+                            logger.debug("添加缺失的vector_count字段")
+                        if "versions" not in current_file:
+                            current_file["versions"] = []
+                            logger.debug("添加缺失的versions字段")
                             
-                            # 更新元数据信息，确保每个向量都有文件信息
-                            for i, meta in enumerate(metadata):
-                                vector_idx = before_count + i
-                                if isinstance(collection_metadata, dict):
-                                    if str(vector_idx) in collection_metadata:
-                                        if "metadata" not in collection_metadata[str(vector_idx)]:
-                                            collection_metadata[str(vector_idx)]["metadata"] = {}
-                                        collection_metadata[str(vector_idx)]["metadata"]["file_name"] = file_name
-                                        collection_metadata[str(vector_idx)]["metadata"]["file_path"] = file_path
-                                elif isinstance(collection_metadata, list) and vector_idx < len(collection_metadata):
-                                    if "metadata" not in collection_metadata[vector_idx]:
-                                        collection_metadata[vector_idx]["metadata"] = {}
-                                    collection_metadata[vector_idx]["metadata"]["file_name"] = file_name
-                                    collection_metadata[vector_idx]["metadata"]["file_path"] = file_path
+                        # 更新向量计数
+                        old_count = current_file["vector_count"]
+                        current_file["vector_count"] += added_count
+                        current_file["last_updated"] = datetime.now().isoformat()
+                        logger.info(f"更新向量计数: {old_count} -> {current_file['vector_count']}")
+                        
+                        # 创建新版本
+                        next_version = 1
+                        if current_file["versions"]:
+                            next_version = max([v.get("version", 0) for v in current_file["versions"]]) + 1
                             
-                            logger.info(f"文件注册表: 添加新文件 {file_name} 记录，包含 {added_count} 个向量")
-                        else:
-                            # 更新现有文件记录
-                            current_file = self.file_registry[collection_name][file_name]
-                            
-                            # 确保文件名和路径字段存在
-                            if "file_name" not in current_file:
-                                current_file["file_name"] = file_name
-                            if "file_path" not in current_file:
-                                current_file["file_path"] = file_path
-                                
-                            # 确保vector_count字段存在
-                            if "vector_count" not in current_file:
-                                current_file["vector_count"] = 0
-                                
-                            current_file["vector_count"] += added_count
-                            current_file["last_updated"] = datetime.now().isoformat()
-                            
-                            # 确保versions字段存在
-                            if "versions" not in current_file:
-                                current_file["versions"] = []
-                                
-                            # 创建新版本
-                            next_version = 1
-                            if current_file["versions"]:
-                                next_version = max([v.get("version", 0) for v in current_file["versions"]]) + 1
-                                
-                            new_version = {
-                                "version": next_version,
-                                "vector_count": added_count,
-                                "vector_ids": list(range(before_count, before_count + added_count)),
-                                "created_at": datetime.now().isoformat()
-                            }
-                            
-                            current_file["versions"].append(new_version)
-                            current_file["current_version"] = next_version
-                            logger.info(f"文件注册表: 更新文件 {file_name} 记录，添加版本 {next_version}，包含 {added_count} 个新向量")
+                        new_version = {
+                            "version": next_version,
+                            "vector_count": added_count,
+                            "vector_ids": list(range(before_count, before_count + added_count)),
+                            "created_at": datetime.now().isoformat()
+                        }
+                        
+                        current_file["versions"].append(new_version)
+                        current_file["current_version"] = next_version
+                        logger.info(f"文件注册表: 更新文件 {file_name} 记录，添加版本 {next_version}，包含 {added_count} 个新向量")
+                        
+                        # 记录文件更新事件
+                        self._record_file_event(collection_name, file_name, "file_updated", {
+                            "new_version": next_version,
+                            "added_vectors": added_count,
+                            "duplicates_skipped": duplicates_count
+                        })
+                    
+                    # 更新元数据中的文件信息
+                    for i, meta in enumerate(accepted_metadata):
+                        vector_idx = before_count + i
+                        if isinstance(collection_metadata, dict):
+                            if str(vector_idx) in collection_metadata:
+                                if "metadata" not in collection_metadata[str(vector_idx)]:
+                                    collection_metadata[str(vector_idx)]["metadata"] = {}
+                                collection_metadata[str(vector_idx)]["metadata"]["file_name"] = file_name
+                                collection_metadata[str(vector_idx)]["metadata"]["file_path"] = file_path
+                        elif isinstance(collection_metadata, list) and vector_idx < len(collection_metadata):
+                            if "metadata" not in collection_metadata[vector_idx]:
+                                collection_metadata[vector_idx]["metadata"] = {}
+                            collection_metadata[vector_idx]["metadata"]["file_name"] = file_name
+                            collection_metadata[vector_idx]["metadata"]["file_path"] = file_path
+                    
+                    # 更新文件注册表的基本统计信息
+                    self.file_registry[collection_name]["_last_updated"] = datetime.now().isoformat()
+                    file_count = sum(1 for k in self.file_registry[collection_name].keys() if not k.startswith('_'))
+                    self.file_registry[collection_name]["_file_count"] = file_count
+                    self.file_registry[collection_name]["_vector_count"] = index.ntotal
+                    logger.info(f"更新文件注册表统计信息: {file_count} 个文件, {index.ntotal} 个向量")
                     
                     # 保存更新后的数据
                     logger.info(f"开始保存索引、元数据和文件注册表...")
@@ -1059,40 +1193,80 @@ class FaissManager:
                     
                     # 检查所有组件是否成功保存
                     if not index_saved:
-                        logger.error(f"索引保存失败，索引包含 {after_count} 个向量")
+                        logger.error(f"索引保存失败，索引包含 {index.ntotal} 个向量")
                     if not metadata_saved:
-                        logger.error(f"元数据保存失败，包含 {len(collection_metadata)} 个条目")
+                        logger.error(f"元数据保存失败，包含 {len(collection_metadata) if isinstance(collection_metadata, list) else len(collection_metadata.keys())} 个条目")
                     if not registry_saved:
-                        logger.error(f"文件注册表保存失败: {self.file_registry.get(collection_name, {})}")
+                        logger.error(f"文件注册表保存失败: {file_count} 个文件, {index.ntotal} 个向量")
                     
                     if not (index_saved and metadata_saved and registry_saved):
-                        logger.error(f"添加向量时保存失败: 索引={index_saved}, 元数据={metadata_saved}, 文件注册表={registry_saved}")
+                        error_msg = f"添加向量时保存失败: 索引={index_saved}, 元数据={metadata_saved}, 文件注册表={registry_saved}"
+                        logger.error(error_msg)
+                        # 记录保存失败事件
+                        self._record_collection_event(collection_name, "save_failed", {
+                            "error": error_msg,
+                            "timestamp": datetime.now().isoformat()
+                        })
                         return {"status": "error", "message": "向量添加成功但保存数据失败"}
                     
-                    logger.info(f"成功添加 {added_count} 个向量到索引 {collection_name}, 拒绝了 {duplicates_count} 个重复向量")
+                    # 记录成功事件
+                    self._record_collection_event(collection_name, "vectors_added", {
+                        "count": added_count,
+                        "file_name": file_name,
+                        "duplicates_skipped": duplicates_count,
+                        "timestamp": datetime.now().isoformat()
+                    })
+                    
+                    logger.info(f"成功添加 {added_count} 个向量到集合 {collection_name}, 拒绝了 {duplicates_count} 个重复向量")
                     return {
                         "status": "success", 
                         "message": f"添加了 {added_count} 个向量到集合 {collection_name}, 跳过了 {duplicates_count} 个重复向量", 
                         "count": added_count, 
-                        "duplicates": duplicates_count
+                        "duplicates": duplicates_count,
+                        "file_name": file_name
                     }
                 except Exception as e:
-                    logger.error(f"添加向量时发生错误: {str(e)}")
+                    error_msg = f"添加向量时发生错误: {str(e)}"
+                    logger.error(error_msg)
                     logger.error(traceback.format_exc())
-                    return {"status": "error", "message": f"添加向量时发生错误: {str(e)}"}
+                    # 记录错误事件
+                    self._record_collection_event(collection_name, "add_vectors_error", {
+                        "error": str(e),
+                        "file_path": file_path,
+                        "timestamp": datetime.now().isoformat()
+                    })
+                    return {"status": "error", "message": error_msg}
             else:
                 logger.info(f"所有 {len(vectors)} 个向量都被视为重复，没有添加任何向量到索引 {collection_name}")
+                # 记录所有向量都重复的事件
+                self._record_collection_event(collection_name, "all_vectors_duplicate", {
+                    "vector_count": len(vectors),
+                    "file_path": file_path,
+                    "timestamp": datetime.now().isoformat()
+                })
                 return {
                     "status": "success", 
                     "message": f"所有 {len(vectors)} 个向量都是重复的，没有添加任何新向量", 
                     "count": 0, 
-                    "duplicates": duplicates_count
+                    "duplicates": duplicates_count,
+                    "file_name": os.path.basename(file_path)
                 }
         
         except Exception as e:
-            logger.error(f"添加向量到集合 {collection_name} 时发生错误: {str(e)}")
+            error_msg = f"添加向量到集合 {collection_name} 时发生错误: {str(e)}"
+            logger.error(error_msg)
             logger.error(traceback.format_exc())
-            return {"status": "error", "message": f"添加向量失败: {str(e)}"}
+            # 记录严重错误事件
+            try:
+                self._record_collection_event(collection_name, "critical_error", {
+                    "error": str(e),
+                    "file_path": file_path if file_path else "未知",
+                    "timestamp": datetime.now().isoformat()
+                })
+            except:
+                # 如果连错误记录都失败，则静默处理
+                pass
+            return {"status": "error", "message": error_msg}
     
     def search(self, collection_name: str, query_vector: np.ndarray, top_k: int = 5) -> Tuple[List[int], List[float], List[Dict]]:
         """
@@ -2745,17 +2919,4 @@ class DataLineageTracker:
         self.lineage_store.insert(lineage_record)
 
 
-# if __name__ == "__main__":
-#     faiss_manager = FaissManager()
-#     faiss_manager.create_collection("test_collection", dimension=1536, index_type="Flat")
-#     faiss_manager.add_vectors("test_collection", np.random.random((1000, 1536)).astype('float32'), [{"text": "test"}], "test.txt")
-#     results = faiss_manager.search("test_collection", np.random.random((1536,)).astype('float32'), top_k=5)
-#     print(results)
-    # files_info = faiss_manager.list_files("test")
-    # print(files_info)
-    # file_info = faiss_manager.get_file_info("test", "test.txt")
-    # print(file_info)
-    # faiss_manager.replace_file("test_collection", "test.txt", np.random.random((1000, 1536)).astype('float32'), [{"text": "test"}])
-    # faiss_manager.delete_file("test_collection", "test.txt")
-    # faiss_manager.delete_collection("test_collection")
 

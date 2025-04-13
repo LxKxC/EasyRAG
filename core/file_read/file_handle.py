@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 """create by haozi
     2025-03-14
-    文件处理类，支持从不同格式的文件中提取内容
+    文件处理类，支持从不同格式的文件中提取内容，返回带章节格式的json内容
 """
 
 
