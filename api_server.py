@@ -42,8 +42,10 @@ from main import RAGService, DocumentProcessor
 # 格式: {task_id: {"status": "processing/completed/failed", "progress": 0-100, "message": "处理中..."}}
 processing_tasks = {}
 
-# 导入DeepSeek LLM模型
-from core.llm.local_llm_model import get_llm_model
+# # 导入DeepSeek LLM模型
+# from core.llm.local_llm_model import get_llm_model
+# 使用openai接口
+from core.llm.openai_llm_model import get_openai_model as get_llm_model
 from core.chunker.chunker_main import ChunkMethod
 
 # 定义API模型
