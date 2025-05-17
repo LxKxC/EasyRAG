@@ -850,8 +850,10 @@ class RAGService:
             context = "\n\n".join(context_texts)
             
             try:
-                # 导入DeepSeekLLM模型
-                from core.llm.local_llm_model import get_llm_model
+                # # 导入DeepSeekLLM模型
+                # from core.llm.local_llm_model import get_llm_model
+                # 使用openai
+                from core.llm.openai_llm_model import get_openai_model as get_llm_model
                 model = get_llm_model()
                 
                 # 准备对话历史（转换为local_llm_model格式）
