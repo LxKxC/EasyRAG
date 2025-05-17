@@ -5,6 +5,7 @@ import logging
 from typing import List, Dict, Any, Optional, Generator
 import requests
 from dotenv import load_dotenv
+import json
 
 # 加载环境变量
 load_dotenv()
@@ -185,11 +186,14 @@ class OpenAICompatibleLLM:
                     break
                     
                 try:
-                    chunk = eval(line)  # 解析JSON为Python字典
+                    # chunk = eval(line)  # 解析JSON为Python字典
+                    chunk = json.loads(line)
                     if "choices" in chunk and len(chunk["choices"]) > 0:
                         delta = chunk["choices"][0].get("delta", {})
                         if "content" in delta:
                             content = delta["content"]
+                            if content == None:
+                                content = ''
                             yield content
                 except Exception as e:
                     logger.error(f"解析流式响应出错: {str(e)}, line: {line}")
