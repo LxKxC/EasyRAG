@@ -192,6 +192,7 @@ class OpenAICompatibleLLM:
                         delta = chunk["choices"][0].get("delta", {})
                         if "content" in delta:
                             content = delta["content"]
+                            # 下面是为了适配deepseek-r1官方API,临时打的补丁。
                             if content == None:
                                 content = ''
                             yield content
