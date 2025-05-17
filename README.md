@@ -1,5 +1,9 @@
 # EasyRAG - 轻量级本地知识库增强系统
 
+# 请去https://github.com/BetaStreetOmnis/EasyRAG 下载
+
+# 此项目仅为个人微调代码使用
+
 [中文](README.md) | [English](README_EN.md)
 
 ## 项目简介
